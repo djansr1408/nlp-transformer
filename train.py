@@ -13,15 +13,15 @@ from utils.data_preparing import get_data_loaders
 import utils.constants as C
 from utils.helper import load_checkpoint, form_subsequent_mask
 from models import Transformer
-
 from config import TRANSFORMER_CONFIG
-
-import matplotlib.pyplot as plt
-import time
 
 torch.manual_seed(0)
 
 class CustomOptimizer():
+    """
+        Optimizer used to calculate custom learning rate after each step and update the parameters of a base optimizer.
+        Formula for calculation: lr = d_model^(-0.5) * min(num_steps^(-0.5), num_steps * warmup_steps^(-1.5))
+    """
     def __init__(self, base_optimizer, **config):
         model_dir = os.path.join(C.STORAGE_DIR, config["model_alias"])
         checkpoint = load_checkpoint(model_dir)
@@ -47,10 +47,16 @@ class CustomOptimizer():
     def zero_grad(self):
         self.base_optimizer_.zero_grad()
 
-def calculate_loss(logits, target, trg_pad_token_id, smoothing=True, eps=0.1):
+def calculate_loss(logits, 
+                   target, 
+                   trg_pad_token_id, 
+                   smoothing=True, 
+                   eps=0.1):
     """
-        Scores of shape: (batch_size, trg_seq_len, trg_vocab_size)
-        Target of shape: (batch_size, trg_seq_len)
+        logits of shape: (batch_size, trg_seq_len, trg_vocab_size)
+        target of shape: (batch_size, trg_seq_len)
+        smoothing - If True then soft encoding and cross-entropy loss is used. Otherwise, Kullback-Leibner distance is used.
+
     """
     scores = nn.Softmax(dim=-1)(logits)
 
@@ -74,7 +80,18 @@ def calculate_loss(logits, target, trg_pad_token_id, smoothing=True, eps=0.1):
     return loss
 
 
-def train_and_val_epoch(model, optimizer, data_loader, device, src_pad_token_id, trg_pad_token_id, training=True, smoothing=True, log_every_n_steps=50):
+def train_and_val_epoch(model, 
+                        optimizer, 
+                        data_loader, 
+                        device, 
+                        src_pad_token_id, 
+                        trg_pad_token_id, 
+                        training=True, 
+                        smoothing=True, 
+                        log_every_n_steps=50):
+    """
+        This function performs training and validating after certain number of steps specified by the argument.
+    """
     train_losses = []
     model.train()
     for batch_id, batch in enumerate(data_loader):
@@ -93,7 +110,12 @@ def train_and_val_epoch(model, optimizer, data_loader, device, src_pad_token_id,
 
         if optimizer.num_steps % log_every_n_steps == 0:
             train_loss = np.mean(train_losses)            
-            val_loss = evaluate(model, val_loader, src_pad_token_id, trg_pad_token_id, device, smoothing)
+            val_loss = evaluate(model, 
+                                val_loader, 
+                                src_pad_token_id, 
+                                trg_pad_token_id, 
+                                device, 
+                                smoothing)
             writer.add_scalars(f'Loss/', {
                                             'train': train_loss,
                                             'val': val_loss,
@@ -112,7 +134,15 @@ def train_and_val_epoch(model, optimizer, data_loader, device, src_pad_token_id,
     return train_loss, val_loss, save_path
     
 
-def evaluate(model, val_loader, src_pad_token_id, trg_pad_token_id, device, smoothing):
+def evaluate(model, 
+             val_loader, 
+             src_pad_token_id, 
+             trg_pad_token_id, 
+             device, 
+             smoothing):
+    """
+        This function evaluates model by running inference for provided dataloader.
+    """
     model.eval()
     val_losses = []
     with torch.no_grad():
@@ -125,7 +155,15 @@ def evaluate(model, val_loader, src_pad_token_id, trg_pad_token_id, device, smoo
     return np.mean(val_losses)
 
 
-def prepare_batch(batch, src_pad_token_id, trg_pad_token_id, device, src_tokenizer=None, trg_tokenizer=None):
+def prepare_batch(batch, 
+                  src_pad_token_id, 
+                  trg_pad_token_id, 
+                  device, 
+                  src_tokenizer=None, 
+                  trg_tokenizer=None):
+    """
+        This function prepares input batch to the shape adequate for transformer architecture.
+    """
     src_batch = batch.src.to(device)
     trg_batch_input, trg_batch_output = batch.trg[:, :-1].to(device), batch.trg[:, 1:].to(device)
     
@@ -143,19 +181,15 @@ if __name__ == "__main__":
                                                                                            batch_size=TRANSFORMER_CONFIG["batch_size"], 
                                                                                            device=device, 
                                                                                            load_cached=TRANSFORMER_CONFIG['load_cached'])
-    
-    print(len(train_loader))
-    print(len(val_loader))
-    print(len(test_loader))
-    quit()
 
     src_vocab_size = len(src_tokenizer.vocab)
     trg_vocab_size = len(trg_tokenizer.vocab)
     src_pad_token_id = src_tokenizer.vocab.stoi[C.PAD_WORD]
     trg_pad_token_id = trg_tokenizer.vocab.stoi[C.PAD_WORD]
 
-    model = Transformer(src_vocab_size=src_vocab_size, trg_vocab_size=trg_vocab_size, config=TRANSFORMER_CONFIG)
-    model.to(device)
+    model = Transformer(src_vocab_size=src_vocab_size, 
+                        trg_vocab_size=trg_vocab_size, 
+                        config=TRANSFORMER_CONFIG).to(device)
 
     custom_optimizer = CustomOptimizer(base_optimizer=optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-09), **TRANSFORMER_CONFIG)
     

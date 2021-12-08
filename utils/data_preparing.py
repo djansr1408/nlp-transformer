@@ -19,18 +19,24 @@ de = spacy.load("de_core_news_sm")
 LangModel.en = en
 LangModel.de = de
 
+dataset = torchtext.datasets.IWSLT
+
 def tokenize_src(text): 
     return [tok.text for tok in LangModel.en.tokenizer(text) if not tok.is_space]
 
 def tokenize_trg(text): 
     return [tok.text for tok in LangModel.de.tokenizer(text) if not tok.is_space]
 
-dataset = torchtext.datasets.IWSLT
-
 def filter_long_examples(batch):
     return len(batch.src) <= C.MAX_SEQ_LEN and len(batch.trg) <= C.MAX_SEQ_LEN
 
-def get_data_loaders(dataset_path, batch_size, device, load_cached=True):
+def get_data_loaders(dataset_path, 
+                     batch_size, 
+                     device, 
+                     load_cached=True):
+    """
+        This function splits the dataset to train, val and test data loaders. Each dataloader contains batches of tokenized sentences.
+    """
     src_tokenizer = Field(tokenize = tokenize_src, init_token=C.SOS_WORD, eos_token=C.EOS_WORD, pad_token=C.PAD_WORD, batch_first=True)
     trg_tokenizer = Field(tokenize = tokenize_trg, init_token=C.SOS_WORD, eos_token=C.EOS_WORD, pad_token=C.PAD_WORD, batch_first=True)
     fields = [('src', src_tokenizer), ('trg', trg_tokenizer)]
@@ -41,9 +47,8 @@ def get_data_loaders(dataset_path, batch_size, device, load_cached=True):
 
     if not load_cached:
         train_dataset, val_dataset, test_dataset = dataset.splits(root=dataset_path, exts=(".en", ".de"), 
-                                                                fields=fields, 
-                                                                filter_pred=filter_long_examples)
-        
+                                                                  fields=fields, 
+                                                                  filter_pred=filter_long_examples)
         save_dataset(train_cache_path, train_dataset)
         save_dataset(val_cache_path, val_dataset)
         save_dataset(test_cache_path, test_dataset)
@@ -57,9 +62,9 @@ def get_data_loaders(dataset_path, batch_size, device, load_cached=True):
     trg_tokenizer.build_vocab(train_dataset.trg, min_freq=2)
 
     train_loader, val_loader, test_loader = BucketIterator.splits(datasets=(train_dataset, val_dataset, test_dataset), 
-                                                        batch_size=batch_size, 
-                                                        device=device, 
-                                                        sort_within_batch=True)
+                                                                  batch_size=batch_size, 
+                                                                  device=device, 
+                                                                  sort_within_batch=True)
     
     return train_loader, val_loader, test_loader, src_tokenizer, trg_tokenizer
 
@@ -74,9 +79,6 @@ def save_dataset(output_path, dataset):
 class FastDataset(Dataset):
     @staticmethod
     def sort_key(ex):
-        # What this does is basically it takes a 16-bit binary representation of lengths and interleaves them.
-        # Example: lengths len(ex.src)=5 and len(ex.trg)=3 result in f(101, 011)=100111, 7 and 1 in f(111, 001)=101011
-        # It's basically a heuristic that helps the BucketIterator sort bigger batches first
         return interleave_keys(len(ex.src), len(ex.trg))
 
     def __init__(self, cache_path, fields):
@@ -93,12 +95,3 @@ class FastDataset(Dataset):
                 examples.append(example)
             
             super().__init__(examples, fields)
-
-
-
-
-
-
-
-# train_loader, val_loader, test_loader, src_tokenizer, trg_tokenizer = get_data_loaders(dataset_path=".data")
-# print(len(src_tokenizer.vocab))

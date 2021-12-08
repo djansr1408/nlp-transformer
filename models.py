@@ -3,9 +3,8 @@ import torch.nn as nn
 import math
 from typing import List
 import os
-import re
-import utils.constants as C
 
+import utils.constants as C
 from utils.helper import load_checkpoint
 
 class ScaledDotProductAttention(nn.Module):
@@ -15,10 +14,10 @@ class ScaledDotProductAttention(nn.Module):
     
     def __call__(self, Q, K, V, mask=None):
         """
-            Q - Tensor of shape: (batch_size x n_heads x N x d_k) representing Query projection of the input embedding matrix (batch_size X N x emb_size)
-            K - Tensor of shape: (batch_size x n_heads x N x d_k) representing Key projection of the input embedding matrix (batch_size X N x emb_size)
-            V - Tensor of shape: (batch_size x n_heads x N x d_v) representing Value projection of the input embedding matrix (batch_size X N x emb_size)
-            N - length of input sentence (including padding)
+            Q - Tensor of shape: (batch_size x n_heads x seq_len x d_k) representing Query projection of the input embedding matrix (batch_size X seq_len x emb_size)
+            K - Tensor of shape: (batch_size x n_heads x seq_len x d_k) representing Key projection of the input embedding matrix (batch_size X seq_len x emb_size)
+            V - Tensor of shape: (batch_size x n_heads x seq_len x d_v) representing Value projection of the input embedding matrix (batch_size X seq_len x emb_size)
+            seq_len - length of input sentence (including padding)
             emb_size - Size of input embedding for words, in original paper called d_model
         """
         d_k = K.size(1)
@@ -26,10 +25,9 @@ class ScaledDotProductAttention(nn.Module):
         res = torch.matmul(Q, K_t) / math.sqrt(d_k)             # (batch_size x n_heads x N x N)
         if mask is not None:
             res.masked_fill_(mask, 1e-12)                       # Apply mask to scores
-        attention = nn.Softmax(dim=3)(res)                # Apply Softmax to scaled product
-        attention = self.dropout(attention)        # Apply dropout to Softmax scores
+        attention = nn.Softmax(dim=3)(res)                      # Apply Softmax to scaled product
+        attention = self.dropout(attention)                     # Apply dropout to Softmax scores
         context = torch.matmul(attention, V)                    # Multiply Value with calculated attention
-        
 
         return attention, context
 
@@ -56,8 +54,11 @@ class MultiHeadAttention(nn.Module):
 
     def __call__(self, Q, K, V, mask):
         """
-            X - Tensor of shape: (batch_size, N, d_model)
-            Note: d_q = d_k
+            Q of shape: (batch_size, seq_len, d_model)
+            K of shape: (batch_size, seq_len, d_model)
+            V of shape: (batch_size, seq_len, d_model)
+            mask of shape: (batch_size, 1, 1, seq_len)
+            Note: d_q = d_k = d_v
         """
         batch_size = Q.size(0)
 
@@ -83,7 +84,7 @@ class PositionWiseFCNet(nn.Module):
     
     def __call__(self, X):
         """
-            X of shape: (batch_size, N, d_model)
+            X of shape: (batch_size, seq_len, d_model)
         """
         output = self.dropout(self.relu(self.w_1(X)))
         output = self.w_2(output)
@@ -101,9 +102,9 @@ class EncoderPart(nn.Module):
     
     def __call__(self, X, mask):
         """
-            X of shape: (batch_size, N, d_model)
-            mask of shape: (batch_size, 1, N)
-            Returns: output of shape (batch_size, N, d_model)
+            X of shape: (batch_size, seq_len, d_model)
+            mask of shape: (batch_size, 1, seq_len)
+            Returns: output of shape (batch_size, seq_len, d_model)
         """
         output = self.multi_head_attention(X, X, X, mask)
         output = self.norm_1(output + X)
@@ -122,9 +123,9 @@ class Encoder(nn.Module):
     
     def __call__(self, X, mask=None):
         """
-            X of shape: (batch_size, N, d_model)
-            mask of shape: (batch_size, 1, N)
-            Returns: output of shape (batch_size, N, d_model)
+            X of shape: (batch_size, seq_len, d_model)
+            mask of shape: (batch_size, 1, seq_len)
+            Returns: output of shape (batch_size, seq_len, d_model)
         """
         output = X
         for enc_part in self.encoder_parts:
@@ -145,8 +146,12 @@ class DecoderPart(nn.Module):
     
     def __call__(self, inputs, encoder_outputs, src_mask, trg_mask):
         """
-            X of shape: (batch_size, N, d_model)
-            Returns: output of shape (batch_size, N, d_model)
+            inputs of shape: (batch_size, trg_seq_len, d_model)
+            encoder_outputs of shape: (batch_size, src_seq_len, d_model)
+            src_mask of shape: (batch_size, 1, 1, src_seq_len)
+            trg_mask_of_shape: (batch_size, 1, trg_seq_len, trg_seq_len)
+
+            Returns: output of shape (batch_size, trg_seq_len, d_model)
         """
         output = self.masked_multi_head_attention(inputs, inputs, inputs, mask=trg_mask)
         output = self.norm_1(output + inputs)
@@ -170,6 +175,14 @@ class Decoder(nn.Module):
         self.w_linear = nn.Linear(n_heads * d_v, d_model)
 
     def __call__(self, X, encoder_output, src_mask, trg_mask):
+        """
+            X of shape: (batch_size, trg_seq_len, d_model)
+            encoder_output of shape: (batch_size, src_seq_len, d_model)
+            src_mask of shape: (batch_size, 1, 1, src_seq_len)
+            trg_mask_of_shape: (batch_size, 1, trg_seq_len, trg_seq_len)
+
+            Returns: output of shape (batch_size, trg_seq_len, d_model)
+        """
         output = X
         for dec_part in self.decoder_parts:
             output = dec_part(output, encoder_output, src_mask, trg_mask)
@@ -224,6 +237,10 @@ class Transformer(nn.Module):
                     torch.nn.init.xavier_uniform_(params)
 
     def encode(self, src_batch, src_mask):
+        """
+            src_batch: shape (batch_size, seq_len)
+            src_mask: shape (batch_size, 1, 1, seq_len)
+        """
         encoder_input = self.src_word_embedding(src_batch)
         encoder_input = self.src_positional_embedding(encoder_input)
         encoder_output = self.encoder(encoder_input, src_mask)
@@ -235,7 +252,7 @@ class Transformer(nn.Module):
         decoder_input = self.trg_positional_embedding(decoder_input)    # shape (batch_size, seq_len, d_model)
         
         decoder_output = self.decoder(decoder_input, encoder_output, src_mask, trg_mask)  # shape (batch_size, seq_len, d_model)
-        logits = self.w_linear(decoder_output)  # shape (batch_size, seq_len, trg_vocab_size)
+        logits = self.w_linear(decoder_output)                          # shape (batch_size, seq_len, trg_vocab_size)
         scores = self.softmax(logits)
 
         return logits, scores
@@ -270,6 +287,6 @@ class PositionalEncoding(nn.Module):
         
     def __call__(self, X):
         """
-            X is embedding batch of shape (batch_size, num_tokens, d_model)
+            X is embedding batch of shape (batch_size, seq_len, d_model)
         """
         return self.dropout(X + self.sinusoid_table[:X.size(1), :])
