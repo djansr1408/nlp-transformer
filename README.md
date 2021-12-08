@@ -50,22 +50,38 @@ Create ```config.json``` file which contains parameters of the model, as well as
 ```batch_size```: Batch size (Default: 16)
 
 ```load_cached```: Whether to use cached dataset already split to train, validation and test part (Default: true). 
-```embedding_size```: Embedding size for the input (Default: 512, specified in the original paper) 
-```num_parts_encoder```: 6, 
-    "num_parts_decoder": 6, 
-    "d_model": 512, 
-    "d_k": 64, 
-    "d_v": 64, 
-    "n_heads": 8, 
-    "inner_layer_size": 2048, 
-    "dropout": 0.1, 
-    "device": "cuda", 
-    "warmup_steps": 4000, 
-    "num_epochs": 5, 
-    "smoothing": true, 
-    "smoothing_coeff": 0.1, 
-    "use_xavier_init": true, 
-    "log_every_n_steps": 600
+
+```embedding_size```: Embedding size for the input (Default: 512) 
+
+```num_parts_encoder```: Number of encoder blocks (Default: 6), 
+
+```num_parts_decoder```: Number of decoder blocks (Default: 6), 
+
+```d_model```: Dimension of layers output (Default: 512), 
+    
+```d_k```: Dimension of queries and keys (Default: 64),
+
+```d_v```: Dimension of value inputs (Default: 64), 
+
+```n_heads```: Number of scaled dot-product attention heads (Default: 8), 
+
+```inner_layer_size```: Size of the inner layer used in FC networks (Default: 2048), 
+
+```dropout```: Dropout (Default: 0.1), 
+
+```device```: Device type 'cpu' or 'cuda' (Default: "cuda"), 
+
+```warmup_steps```: Warmup steps used for calculating learning rate (Default: 4000), 
+
+```num_epochs```: Number of training epochs (Default: 5), 
+
+```smoothing```: Whether to use soft encoding with cross-entropy loss (Default: true). If false then Kullback-Leibner distance is used. 
+
+```smoothing_coeff```: Smoothing coeff which replaces zeros in one-hot encoding (Default: 0.1), 
+
+```use_xavier_init```: Whether to use xavier initialization for model weights (Default: true), 
+
+```log_every_n_steps```: Log train and val loss after certain number of steps (Default: 600)
 
 ## Run training with the command:
 ```python
