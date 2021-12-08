@@ -18,7 +18,7 @@ pip install -r requirements.txt
 Create ```.env``` file which contains environment variables such as ```BASE_DIR``` and ```DATASET_DIR```.
 ```python
 BASE_DIR="./path_to_the_repository/nlp-transformer"
-DATASET_DIR="./path_to_the_dataset/.data"
+DATASET_DIR="./path_to_the_repository/nlp-transformer/data/.data"  # Here it is already inside the base directory (but doesn't necessary needs to be)
 ```
 
 Create ```config.json``` file which contains parameters of the model, as well as training parameters:
@@ -44,5 +44,10 @@ Create ```config.json``` file which contains parameters of the model, as well as
     "use_xavier_init": true, 
     "log_every_n_steps": 600
 }
+```
+
+## Run training with the command:
+```python
+python train.py
 ```
 
