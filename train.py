@@ -144,6 +144,11 @@ if __name__ == "__main__":
                                                                                            device=device, 
                                                                                            load_cached=TRANSFORMER_CONFIG['load_cached'])
     
+    print(len(train_loader))
+    print(len(val_loader))
+    print(len(test_loader))
+    quit()
+
     src_vocab_size = len(src_tokenizer.vocab)
     trg_vocab_size = len(trg_tokenizer.vocab)
     src_pad_token_id = src_tokenizer.vocab.stoi[C.PAD_WORD]
