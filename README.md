@@ -88,7 +88,8 @@ Create ```config.json``` file which contains parameters of the model, as well as
 python train.py
 ```
 
-## Run ```tensorboard``` for monitoring the train and validation loss.
+## Monitoring
+Run ```tensorboard``` for monitoring the train and validation loss.
 ```python
 tensorboard --logidr=./runs
 ```
