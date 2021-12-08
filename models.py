@@ -2,7 +2,11 @@ import torch
 import torch.nn as nn
 import math
 from typing import List
+import os
+import re
+import utils.constants as C
 
+from utils.helper import load_checkpoint
 
 class ScaledDotProductAttention(nn.Module):
     def __init__(self, dropout=0.1):
@@ -200,29 +204,53 @@ class Transformer(nn.Module):
                                dropout=config['dropout'])
 
         self.w_linear = nn.Linear(config['d_model'], trg_vocab_size, bias=False)
+        self.softmax = nn.Softmax(dim=-1)
 
-        # self.softmax = nn.Softmax()
+        # check if trained model already exists, if so, then continue training, otherwise initialize parameters
+        self.model_dir = os.path.join(C.STORAGE_DIR, config["model_alias"])
+        if not os.path.exists(self.model_dir):
+            os.makedirs(self.model_dir)
+        checkpoint = load_checkpoint(self.model_dir)
+        if checkpoint is not None:
+            self.load_state_dict(checkpoint["model_state_dict"])
+        else:
+            self.init_params(xavier=config["use_xavier_init"])
 
 
-    def __call__(self, src_batch, trg_batch, src_mask, trg_mask):
-        """
-            src_batch: shape (batch_size, seq_len)
-            trg_batch: shape (batch_size, seq_len) 
-            src_mask: shape (batch_size, 1, seq_len)
-            trg_mask: shape (batch_size, seq_len, seq_len)
-        """
+    def init_params(self, xavier=False):
+        if xavier:
+            for name, params in self.named_parameters():
+                if params.dim() > 1:
+                    torch.nn.init.xavier_uniform_(params)
+
+    def encode(self, src_batch, src_mask):
         encoder_input = self.src_word_embedding(src_batch)
         encoder_input = self.src_positional_embedding(encoder_input)
         encoder_output = self.encoder(encoder_input, src_mask)
 
+        return encoder_output
+    
+    def decode(self, encoder_output, trg_batch, trg_mask, src_mask):
         decoder_input = self.trg_word_embedding(trg_batch)              # shape (batch_size, seq_len, d_model)
         decoder_input = self.trg_positional_embedding(decoder_input)    # shape (batch_size, seq_len, d_model)
         
         decoder_output = self.decoder(decoder_input, encoder_output, src_mask, trg_mask)  # shape (batch_size, seq_len, d_model)
-        logits = self.w_linear(decoder_output)                                  # shape (batch_size, seq_len, trg_vocab_size)
-        # scores = self.softmax(logits)
+        logits = self.w_linear(decoder_output)  # shape (batch_size, seq_len, trg_vocab_size)
+        scores = self.softmax(logits)
 
-        return logits
+        return logits, scores
+
+    def __call__(self, src_batch, trg_batch, src_mask, trg_mask):
+        """
+            src_batch: shape (batch_size, seq_len)
+            trg_batch: shape (batch_size, seq_len)
+            src_mask: shape (batch_size, 1, seq_len)
+            trg_mask: shape (batch_size, seq_len, seq_len)
+        """
+        encoder_output = self.encode(src_batch, src_mask)
+        decoder_output, scores = self.decode(encoder_output, trg_batch, trg_mask, src_mask)
+
+        return decoder_output, scores
 
 
 class PositionalEncoding(nn.Module):
@@ -245,59 +273,3 @@ class PositionalEncoding(nn.Module):
             X is embedding batch of shape (batch_size, num_tokens, d_model)
         """
         return self.dropout(X + self.sinusoid_table[:X.size(1), :])
-
-
-
-# if __name__ == "__main__":
-#     batch_size = 10
-#     N = 5
-#     d_model = 512
-#     X = torch.randn(batch_size, N, d_model)
-
-#     pos = PositionalEncoding(max_position_num=50, d_model=d_model, dropout=0.1)
-#     res= pos(X)
-#     print(res.shape)
-
-
-
-
-# if __name__ == "__main__":
-#     # a = ScaledDotProductAttention()
-
-#     num_parts = 6
-#     N = 50
-#     d_model = 512
-#     d_k = 64
-#     d_v = 64
-#     n_heads = 8
-#     inner_layer_size = 2048
-#     batch_size = 32
-
-#     # Q = torch.randn(batch_size, n_heads, N, d_k)
-#     # K = torch.randn(batch_size, n_heads, N, d_k)
-#     # V = torch.randn(batch_size, n_heads, N, d_k)
-#     X = torch.randn(batch_size, N, d_model)
-
-#     # b = MultiHeadAttention(d_model=d_model, d_k=d_k, d_v=d_v, n_heads=n_heads)(X, None)
-#     # print("b size: ", b.size())
-
-#     # c = PositionWiseFCNet(input_size=d_model, inner_layer_size=2048, output_size=d_model)
-#     # c(b)
-
-#     # d = EncoderPart(N, d_model, d_k, d_v, n_heads, inner_layer_size)
-#     # d(X)
-
-#     e = Encoder(num_parts, d_model, d_k, d_v, n_heads, inner_layer_size)
-#     encoder_output = e(X)
-#     print("encoder output size: ", encoder_output.size())
-
-#     # d = DecoderPart(N, d_model, d_k, d_v, n_heads, inner_layer_size)
-#     # d(X, encoder_output, mask=None)
-
-#     d = Decoder(num_parts, d_model, d_k, d_v, n_heads, inner_layer_size)
-#     decoder_output = d(X, encoder_output, mask=None)
-#     print("Decoder output: ", decoder_output.size)
-
-
-
-
