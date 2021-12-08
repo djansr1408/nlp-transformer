@@ -45,9 +45,34 @@ Create ```config.json``` file which contains parameters of the model, as well as
     "log_every_n_steps": 600
 }
 ```
+```model_alias```: Name of the model specified for the specific version of the transformer that is trained.
+
+```batch_size```: Batch size (Default: 16)
+
+```load_cached```: Whether to use cached dataset already split to train, validation and test part (Default: true). 
+```embedding_size```: Embedding size for the input (Default: 512, specified in the original paper) 
+```num_parts_encoder```: 6, 
+    "num_parts_decoder": 6, 
+    "d_model": 512, 
+    "d_k": 64, 
+    "d_v": 64, 
+    "n_heads": 8, 
+    "inner_layer_size": 2048, 
+    "dropout": 0.1, 
+    "device": "cuda", 
+    "warmup_steps": 4000, 
+    "num_epochs": 5, 
+    "smoothing": true, 
+    "smoothing_coeff": 0.1, 
+    "use_xavier_init": true, 
+    "log_every_n_steps": 600
 
 ## Run training with the command:
 ```python
 python train.py
 ```
 
+## Run ```tensorboard``` for monitoring the train and validation loss.
+```python
+tensorboard --logidr=./runs
+```
