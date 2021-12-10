@@ -24,7 +24,7 @@ DATASET_DIR="./path_to_the_repository/nlp-transformer/data/.data"  # Here it is 
 Inside base directory create ```config.json``` file which contains parameters of the model, as well as training parameters:
 ```python
 {
-    "model_alias": "transformer",
+    "model_alias": "transformer", 
     "batch_size": 16,   
     "load_cached": true, 
     "embedding_size": 512, 
