@@ -15,13 +15,13 @@ source env/bin/activate
 pip install -r requirements.txt
 ```
 
-Create ```.env``` file which contains environment variables such as ```BASE_DIR``` and ```DATASET_DIR```.
+Inside base directory create ```.env``` file which contains environment variables such as ```BASE_DIR``` and ```DATASET_DIR```.
 ```python
 BASE_DIR="./path_to_the_repository/nlp-transformer"
 DATASET_DIR="./path_to_the_repository/nlp-transformer/data/.data"  # Here it is already inside the base directory (but doesn't necessary needs to be)
 ```
 
-Create ```config.json``` file which contains parameters of the model, as well as training parameters:
+Inside base directory create ```config.json``` file which contains parameters of the model, as well as training parameters:
 ```python
 {
     "model_alias": "transformer",
@@ -92,4 +92,10 @@ python train.py
 Run ```tensorboard``` for monitoring the train and validation loss.
 ```python
 tensorboard --logidr=./runs
+```
+
+## Inference
+Run ```translate.py``` so to translate specified sentence.
+```python
+python translate.py --sentence "This man is playing football." --beam_size 7
 ```
